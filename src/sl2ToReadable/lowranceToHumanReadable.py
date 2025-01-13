@@ -12,8 +12,15 @@ class SL2Decoder:
             self._decode_sounding_data(f)
 
     def _validate_file(self, file):
+        '''file.seek(0)
+        magic = file.read(4)
+        if magic != b'SL2\x00':
+            raise ValueError("Invalid SL2 file format")'''
+        file.seek(0)
+        print(file.read(64))  # Lese die ersten 64 Bytes zur Analyse
         file.seek(0)
         magic = file.read(4)
+        print(f"Magic header: {magic}")
         if magic != b'SL2\x00':
             raise ValueError("Invalid SL2 file format")
 
@@ -79,6 +86,6 @@ class SL2Decoder:
 # decoder.decode()
 # decoder.export_to_csv('output.csv')
 
-decoder = SL2Decoder(r'"C:\Users\ssteinhauser\Masterthesis\Rohdaten\Lowrance_Hook\Chart 03_08_2005 [0].sl2"')
+decoder = SL2Decoder(r'C:\Users\ssteinhauser\Masterthesis\Rohdaten\Lowrance_Hook\Chart 03_08_2005 [0].sl2')
 decoder.decode()
-decoder.export_to_csv(r'"C:\Users\ssteinhauser\Masterthesis\LowFake"\output.csv')
+decoder.export_to_csv(r'C:\Users\ssteinhauser\Masterthesis\LowFake"\output.csv')
