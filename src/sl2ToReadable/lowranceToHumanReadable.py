@@ -7,17 +7,13 @@ from math import exp, atan, pi
 from datetime import datetime, timezone, timedelta
 from datetime import datetime, timezone
 
-
-
-
-
 class SL2Decoder:
     def __init__(self, filepath, config_path, verbose=True):
         self.filepath = filepath
         self.config_path = config_path
         self.verbose = verbose
         self.records = []
-        self.POLAR_EARTH_RADIUS = 6356752.3142  # Radius für die Umrechnung von Spherical Mercator-Koordinaten in WGS84-Koordinaten
+        self.POLAR_EARTH_RADIUS = 6356752.3142  #radius for the conversion of Spherical Mercator coordinates to WGS84 coordinates
         self.config = {
             # Default conversion factors
             "distance_conversion": 1.0,
@@ -45,7 +41,7 @@ class SL2Decoder:
 
         pos = 0
         header = data[pos:pos + 10]
-        pos += 10 #Hier sind die Quellen sich nicht einig. Manche schalgen Pos 8 oder 10 vor.
+        pos += 10 # skip the header, sources are not clear about this value
 
         # Decode the header
         file_format = struct.unpack('<H', header[0:2])[0]
@@ -88,8 +84,8 @@ class SL2Decoder:
     
     def _decode_record(self, data, pos, block_size):
         """Dekodiert einen einzelnen Datenblock."""
-        # Rohdaten auslesen
-        # hier sind alle Einträge 4 Bytes weiter als in der Doku
+        # Read raw values
+        # here all entries are 4 bytes further than in the documentation (https://wiki.openstreetmap.org/wiki/SL2)
         time1_raw = struct.unpack('<I', data[pos + 60:pos + 64])[0] # seconds since 1980 (GPS Time)
         upper_limit_raw = struct.unpack('<f', data[pos + 44:pos + 48])[0]
         lower_limit_raw = struct.unpack('<f', data[pos + 48:pos + 52])[0]
@@ -100,7 +96,7 @@ class SL2Decoder:
         speed_water_raw = struct.unpack('<f', data[pos + 116:pos + 120])[0]
         time_offset_raw = struct.unpack('<i', data[pos + 140:pos + 144])[0]
 
-        # Konvertierte Werte berechnen
+        # Conversion of raw values
         upper_limit = self._convert_distance(upper_limit_raw)
         lower_limit = self._convert_distance(lower_limit_raw)
         water_depth = self._convert_distance(water_depth_raw)
@@ -122,27 +118,27 @@ class SL2Decoder:
             "latitude": latitude,
             "longitude": longitude,
             "speed_water": speed_water,
-            "time_offset": time_offset_raw,
+            "time_offset": time_offset, # time since system startup (ms)
             "sounding_data": sounding_data
             #here we can add more fields if needed, see the documentation for the full list of possible fields
         }    
 
     def _convert_speed(self, value):
-        """Konvertiert Geschwindigkeitswerte (z. B. Knoten in km/h)."""
+        """Conversion of speed values (from knots to km/h)."""
         value_km_h = value * self.config["speed_conversion"]
         return f"{value_km_h:.2f}" # rounded to 2 decimal places
     
     def _convert_distance(self, value):
-        """Konvertiert Entfernungswerte (z. B. Fuß in Meter)."""
+        """Conversion of distance values (from feet to meters)."""
         value_meters = value * self.config["distance_conversion"]
         return f"{value_meters:.3f}" # rounded to 3 decimal places
     
     def _convert_time(self, value):
-        """Konvertiert Zeitwerte (z. B. Sekunden in Stunden)."""
-        return f"{value / 1000:.2f}"
+        """Conversion of time values (from milliseconds to minutes)."""
+        return f"{value / 1000 /60:.4f}" # minutes since system start up to hundreth (ms)
 
     def _convert_coordinates(self, lng_raw, lat_raw):
-        """Konvertiert Spherical Mercator-Koordinaten zu WGS84."""
+        """Converts Spherical Mercator coordinates to WGS84 (Lat,Lng)."""
         if not self.config["convert_coordinates"]:
             return lng_raw, lat_raw
 
