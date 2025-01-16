@@ -86,14 +86,25 @@ class SL2Decoder:
         """Dekodiert einen einzelnen Datenblock."""
         # Read raw values
         # here all entries are 4 bytes further than in the documentation (https://wiki.openstreetmap.org/wiki/SL2)
-        time1_raw = struct.unpack('<I', data[pos + 60:pos + 64])[0] # seconds since 1980 (GPS Time)
+        block_size = struct.unpack('<h', data[pos + 28:pos + 30])[0] #only needed for reemaster (whole block size matters)
+        last_block_size = struct.unpack('<h', data[pos + 30:pos + 32])[0] #only needed for reemaster (whole block size matters)
+        channel = struct.unpack('<h', data[pos + 32:pos + 34])[0] #only needed for reemaster (whole block size matters)
+        packet_size = struct.unpack('<h', data[pos + 34:pos + 36])[0] #only needed for reemaster (whole block size matters)
+        frame_index = struct.unpack('<i', data[pos + 36:pos + 40])[0] #only needed for reemaster (whole block size matters)
         upper_limit_raw = struct.unpack('<f', data[pos + 44:pos + 48])[0]
         lower_limit_raw = struct.unpack('<f', data[pos + 48:pos + 52])[0]
+        frequency = struct.unpack('<b', data[pos + 53:pos + 54])[0] #only needed for reemaster (whole block size matters)
+        time1_raw = struct.unpack('<I', data[pos + 60:pos + 64])[0] # seconds since 1980 (GPS Time)
         water_depth_raw = struct.unpack('<f', data[pos + 64:pos + 68])[0] 
         speed_gps_raw = struct.unpack('<f', data[pos + 100:pos + 104])[0]
+        water_temprature = struct.unpack('<f', data[pos + 104:pos + 108])[0] #only needed for reemaster (whole block size matters)
         lat_raw = struct.unpack('<i', data[pos + 108:pos + 112])[0]
         lng_raw = struct.unpack('<i', data[pos + 112:pos + 116])[0]
-        speed_water_raw = struct.unpack('<f', data[pos + 116:pos + 120])[0]
+        speed_water_raw = struct.unpack('<f', data[pos + 116:pos + 120])[0] #only needed for reemaster (whole block size matters)
+        course_over_ground = struct.unpack('<f', data[pos + 120:pos + 124])[0] #only needed for reemaster (whole block size matters)
+        altitude = struct.unpack('<f', data[pos + 120:pos + 124])[0] #only needed for reemaster (whole block size matters)
+        heading = struct.unpack('<f', data[pos + 124:pos + 128])[0] #only needed for reemaster (whole block size matters)
+        flags_raw = struct.unpack('<H', data[pos + 132:pos + 134])[0]  # Bit-coded flags
         time_offset_raw = struct.unpack('<i', data[pos + 140:pos + 144])[0]
 
         # Conversion of raw values
@@ -110,18 +121,33 @@ class SL2Decoder:
 
         # Select data fields to include in the output
         return {
-            #"upper_limit": upper_limit if not self.config["include_raw"] else upper_limit_raw,
-            #"lower_limit": lower_limit if not self.config["include_raw"] else lower_limit_raw,
-            #"time1": time1_raw,
+            "block_size": block_size,
+            "last_block_size": last_block_size,
+            "channel": channel,
+            "packet_size": packet_size,
+            "frame_index": frame_index,
+            "upper_limit": upper_limit if not self.config["include_raw"] else upper_limit_raw,
+            "lower_limit": lower_limit if not self.config["include_raw"] else lower_limit_raw,
+            "frequency": frequency,
+            "time1": time1_raw,
             "water_depth": water_depth if not self.config["include_raw"] else water_depth_raw,
-            #"speed_gps": speed_gps,
+            "speed_gps": speed_gps,
+            #"temperature": f"{water_temprature:.2f}",
+            "temperature": water_temprature,
             "latitude": latitude,
             "longitude": longitude,
             "speed_water": speed_water,
-            "time_offset": time_offset, # time since system startup (ms)
-            "sounding_data": sounding_data
-            #here we can add more fields if needed, see the documentation for the full list of possible fields
-        }    
+            #"course_over_ground": f"{course_over_ground:.3f}",
+            "course_over_ground": course_over_ground,
+            #"altitude": f"{altitude:.3f}",
+            "altitude": altitude,
+            #"heading": f"{heading:.3f}",
+            "heading": heading,
+            "flags": flags_raw,
+            "time_offset": time_offset,  #  seconds since system startup
+            "sounding_data": sounding_data  # Decoded sounding data
+            #here you can add more fields if needed or comment out fields wich are not needed, see the documentation for the full list of possible fields
+    }    
 
     def _convert_speed(self, value):
         """Conversion of speed values (from knots to km/h)."""
@@ -135,7 +161,7 @@ class SL2Decoder:
     
     def _convert_time(self, value):
         """Conversion of time values (from milliseconds to minutes)."""
-        return f"{value / 1000 /60:.4f}" # minutes since system start up to hundreth (ms)
+        return f"{value / 1000:.4f}" # seconds since system start up to hundreth (ms)
 
     def _convert_coordinates(self, lng_raw, lat_raw):
         """Converts Spherical Mercator coordinates to WGS84 (Lat,Lng)."""
@@ -210,10 +236,10 @@ class SL2Decoder:
 # from https://wiki.openstreetmap.org/wiki/SL2 and https://gitlab.com/hrbrmstr/arabia
 
 
-filepath = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Temp\Chart 03_08_2005 [0].sl2"
-config_path = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Temp\lowFakeConfig.yaml"
+filepath = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\Chart 03_08_2005 [0].sl2"
+config_path = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\lowFakeConfig.yaml"
 
 
 decoder = SL2Decoder(filepath, config_path, verbose=True)
 decoder.decode()
-decoder.save_to_csv(r'c:\Users\ssteinhauser\Masterthesis\LowFake\Tempsl2ToCsvOutput.csv')
+decoder.save_to_csv(r'c:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput.csv')
