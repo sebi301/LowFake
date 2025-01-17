@@ -85,7 +85,6 @@ class SL2Decoder:
     def _decode_record(self, data, pos, block_size):
         """Dekodiert einen einzelnen Datenblock."""
         # Read raw values
-        # here all entries are 4 bytes further than in the documentation (https://wiki.openstreetmap.org/wiki/SL2)
         block_size = struct.unpack('<h', data[pos + 28:pos + 30])[0] #only needed for reemaster (whole block size matters)
         last_block_size = struct.unpack('<h', data[pos + 30:pos + 32])[0] #only needed for reemaster (whole block size matters)
         channel = struct.unpack('<h', data[pos + 32:pos + 34])[0] #only needed for reemaster (whole block size matters)
@@ -94,7 +93,7 @@ class SL2Decoder:
         upper_limit_raw = struct.unpack('<f', data[pos + 44:pos + 48])[0]
         lower_limit_raw = struct.unpack('<f', data[pos + 48:pos + 52])[0]
         frequency = struct.unpack('<b', data[pos + 53:pos + 54])[0] #only needed for reemaster (whole block size matters)
-        time1_raw = struct.unpack('<I', data[pos + 60:pos + 64])[0] # seconds since 1980 (GPS Time)
+        time1_raw = struct.unpack('<I', data[pos + 60:pos + 64])[0] # seconds since 1980 (GPS Time) Warning! From this point all entries are 4 bytes further than in the documentation (https://wiki.openstreetmap.org/wiki/SL2)
         water_depth_raw = struct.unpack('<f', data[pos + 64:pos + 68])[0] 
         speed_gps_raw = struct.unpack('<f', data[pos + 100:pos + 104])[0]
         water_temprature = struct.unpack('<f', data[pos + 104:pos + 108])[0] #only needed for reemaster (whole block size matters)
@@ -102,8 +101,8 @@ class SL2Decoder:
         lng_raw = struct.unpack('<i', data[pos + 112:pos + 116])[0]
         speed_water_raw = struct.unpack('<f', data[pos + 116:pos + 120])[0] #only needed for reemaster (whole block size matters)
         course_over_ground = struct.unpack('<f', data[pos + 120:pos + 124])[0] #only needed for reemaster (whole block size matters)
-        altitude = struct.unpack('<f', data[pos + 120:pos + 124])[0] #only needed for reemaster (whole block size matters)
-        heading = struct.unpack('<f', data[pos + 124:pos + 128])[0] #only needed for reemaster (whole block size matters)
+        altitude = struct.unpack('<f', data[pos + 124:pos + 128])[0] #only needed for reemaster (whole block size matters)
+        heading = struct.unpack('<f', data[pos + 128:pos + 132])[0] #only needed for reemaster (whole block size matters)
         flags_raw = struct.unpack('<H', data[pos + 132:pos + 134])[0]  # Bit-coded flags
         time_offset_raw = struct.unpack('<i', data[pos + 140:pos + 144])[0]
 
@@ -132,17 +131,17 @@ class SL2Decoder:
             "time1": time1_raw,
             "water_depth": water_depth if not self.config["include_raw"] else water_depth_raw,
             "speed_gps": speed_gps,
-            #"temperature": f"{water_temprature:.2f}",
-            "temperature": water_temprature,
+            "temperature": f"{water_temprature:.2f}",
+            #"temperature": water_temprature,
             "latitude": latitude,
             "longitude": longitude,
             "speed_water": speed_water,
-            #"course_over_ground": f"{course_over_ground:.3f}",
-            "course_over_ground": course_over_ground,
-            #"altitude": f"{altitude:.3f}",
-            "altitude": altitude,
-            #"heading": f"{heading:.3f}",
-            "heading": heading,
+            "course_over_ground": f"{course_over_ground:.3f}",
+            #"course_over_ground": course_over_ground,
+            "altitude": f"{altitude:.3f}",
+            #"altitude": altitude,
+            "heading": f"{heading:.3f}",
+            #"heading": heading,
             "flags": flags_raw,
             "time_offset": time_offset,  #  seconds since system startup
             "sounding_data": sounding_data  # Decoded sounding data
