@@ -124,7 +124,8 @@ class SL2Encoder:
             heading,           # Heading, Länge: 4 Bytes (float), Offset: 128
             flags,             # Flags, Länge: 2 Bytes (short), Offset: 132
             unknowPart5,       # Unbekannter Teil 5 mit 0x05, Länge: 6 Bytes, Offset: 134
-            time_offset,       # Zeitoffset, Länge: 2 Bytes (short), Offset: 140
+            time_offset,       # Zeitoffset, Länge: 4 Bytes (int), Offset: 140
+            sounding_data      # Sounding-Daten, Länge: variabel, Offset: 144
         )
         # Sounding_Data hinzufügen
         block += sounding_data

@@ -1,11 +1,11 @@
 # Please take to note, that this script is only usable for koordinate in the norther hemisphere. 
-# For the southern hemisphere the calculation of the coordinates has to be adjusted.
+# For the southern hemisphere, the calculation of the coordinates (or negative lat/lng coordinates) has to be adjusted.
 import struct
 from bitarray import bitarray
 import yaml
 from math import exp, atan, pi
-from datetime import datetime, timezone, timedelta
 from datetime import datetime, timezone
+import csv
 
 class SL2Decoder:
     def __init__(self, filepath, config_path, verbose=True):
@@ -85,27 +85,35 @@ class SL2Decoder:
     def _decode_record(self, data, pos, block_size):
         """Dekodiert einen einzelnen Datenblock."""
         # Read raw values
-        block_size = struct.unpack('<h', data[pos + 28:pos + 30])[0] #only needed for reemaster (whole block size matters)
-        last_block_size = struct.unpack('<h', data[pos + 30:pos + 32])[0] #only needed for reemaster (whole block size matters)
-        channel = struct.unpack('<h', data[pos + 32:pos + 34])[0] #only needed for reemaster (whole block size matters)
-        packet_size = struct.unpack('<h', data[pos + 34:pos + 36])[0] #only needed for reemaster (whole block size matters)
-        frame_index = struct.unpack('<i', data[pos + 36:pos + 40])[0] #only needed for reemaster (whole block size matters)
+        block_size = struct.unpack('<h', data[pos + 28:pos + 30])[0] #only needed for reefmaster (whole block size matters)
+        last_block_size = struct.unpack('<h', data[pos + 30:pos + 32])[0] #only needed for reefmaster (whole block size matters)
+        channel = struct.unpack('<h', data[pos + 32:pos + 34])[0] #only needed for reefmaster (whole block size matters)
+        packet_size = struct.unpack('<h', data[pos + 34:pos + 36])[0] #only needed for reefmaster (whole block size matters)
+        frame_index = struct.unpack('<i', data[pos + 36:pos + 40])[0] #only needed for reefmaster (whole block size matters)
         upper_limit_raw = struct.unpack('<f', data[pos + 44:pos + 48])[0]
         lower_limit_raw = struct.unpack('<f', data[pos + 48:pos + 52])[0]
-        frequency = struct.unpack('<b', data[pos + 53:pos + 54])[0] #only needed for reemaster (whole block size matters)
+        frequency = struct.unpack('<b', data[pos + 53:pos + 54])[0] #only needed for reefmaster (whole block size matters)
         time1_raw = struct.unpack('<I', data[pos + 60:pos + 64])[0] # seconds since 1980 (GPS Time) Warning! From this point all entries are 4 bytes further than in the documentation (https://wiki.openstreetmap.org/wiki/SL2)
         water_depth_raw = struct.unpack('<f', data[pos + 64:pos + 68])[0] 
         speed_gps_raw = struct.unpack('<f', data[pos + 100:pos + 104])[0]
-        water_temprature = struct.unpack('<f', data[pos + 104:pos + 108])[0] #only needed for reemaster (whole block size matters)
+        water_temperature = struct.unpack('<f', data[pos + 104:pos + 108])[0] #only needed for reefmaster (whole block size matters)
         lat_raw = struct.unpack('<i', data[pos + 108:pos + 112])[0]
         lng_raw = struct.unpack('<i', data[pos + 112:pos + 116])[0]
-        speed_water_raw = struct.unpack('<f', data[pos + 116:pos + 120])[0] #only needed for reemaster (whole block size matters)
-        course_over_ground = struct.unpack('<f', data[pos + 120:pos + 124])[0] #only needed for reemaster (whole block size matters)
-        altitude = struct.unpack('<f', data[pos + 124:pos + 128])[0] #only needed for reemaster (whole block size matters)
-        heading = struct.unpack('<f', data[pos + 128:pos + 132])[0] #only needed for reemaster (whole block size matters)
+        speed_water_raw = struct.unpack('<f', data[pos + 116:pos + 120])[0] #only needed for reefmaster (whole block size matters)
+        course_over_ground = struct.unpack('<f', data[pos + 120:pos + 124])[0] #only needed for reefmaster (whole block size matters)
+        altitude = struct.unpack('<f', data[pos + 124:pos + 128])[0] #only needed for reefmaster (whole block size matters)
+        heading = struct.unpack('<f', data[pos + 128:pos + 132])[0] #only needed for reefmaster (whole block size matters)
         flags_raw = struct.unpack('<H', data[pos + 132:pos + 134])[0]  # Bit-coded flags
         time_offset_raw = struct.unpack('<i', data[pos + 140:pos + 144])[0]
 
+        # Überprüfung NACH dem Dekodieren
+        '''if block_size != 2064 or last_block_size != 2064 or packet_size != 1920:
+            if self.verbose:
+                print(f"Skipping invalid block at {pos}: block_size={block_size}, last_block_size={last_block_size}, packet_size={packet_size}")
+                return None  # Block wird ignoriert'''
+    
+
+    
         # Conversion of raw values
         upper_limit = self._convert_distance(upper_limit_raw)
         lower_limit = self._convert_distance(lower_limit_raw)
@@ -117,6 +125,7 @@ class SL2Decoder:
 
 
         sounding_data = self._extract_sounding_data(data[pos + 145:pos + 145 + block_size])
+
 
         # Select data fields to include in the output
         return {
@@ -131,8 +140,8 @@ class SL2Decoder:
             "time1": time1_raw,
             "water_depth": water_depth if not self.config["include_raw"] else water_depth_raw,
             "speed_gps": speed_gps,
-            "temperature": f"{water_temprature:.2f}",
-            #"temperature": water_temprature,
+            "temperature": f"{water_temperature:.2f}",
+            #"temperature": water_temperature,
             "latitude": latitude,
             "longitude": longitude,
             "speed_water": speed_water,
@@ -147,6 +156,33 @@ class SL2Decoder:
             "sounding_data": sounding_data  # Decoded sounding data
             #here you can add more fields if needed or comment out fields wich are not needed, see the documentation for the full list of possible fields
     }    
+
+    def clean_csv(self, input_path, output_path):
+        valid_rows = []
+        
+        with open(input_path, 'r', newline='') as infile:
+            reader = csv.DictReader(infile)
+            headers = reader.fieldnames  # Spaltennamen speichern
+            
+            
+            for row in reader:
+                try:
+                    block_size = int(row["block_size"])
+                    last_block_size = int(row["last_block_size"])
+                    packet_size = int(row["packet_size"])
+                    
+                    # Überprüfen, ob die Werte gültig sind
+                    if block_size == 2064 and last_block_size == 2064 and packet_size == 1920:
+                        valid_rows.append(row)  # Nur gültige Zeilen behalten
+
+                except ValueError:
+                    continue  # Falls Konvertierung fehlschlägt, Zeile ignorieren
+
+        # Neue bereinigte CSV speichern
+        with open(output_path, 'w', newline='') as outfile:
+            writer = csv.DictWriter(outfile, fieldnames=headers)
+            writer.writeheader()
+            writer.writerows(valid_rows)
 
     def _convert_speed(self, value):
         """Conversion of speed values (from knots to km/h)."""
@@ -218,15 +254,46 @@ class SL2Decoder:
     # Convert raw sounding data block into a list of values
         return list(data_block)
 
-
-
     def save_to_csv(self, output_path):
-        with open(output_path, 'w') as f:
-            headers = self.records[0].keys()
-            f.write(','.join(headers) + '\n')
+        """Speichert die dekodierten Daten als CSV mit festen Sounding-Spalten."""
+        if not self.records:
+            print("Keine Daten zum Speichern vorhanden!")
+            return
+
+        # Basis-Header definieren (alle Spalten ohne Sounding-Daten)
+        base_headers = list(self.records[0].keys())
+
+        # Prüfen, ob `sounding_data` existiert, dann feste Spaltennamen erzeugen
+        if "sounding_data" in base_headers:
+            packet_size = 1920  # Anzahl der Sounding-Werte pro Block (fest definiert)
+            sounding_headers = [f"sounding_{i+1}" for i in range(packet_size)]
+            base_headers.remove("sounding_data")  # `sounding_data`-Key aus der Basis-Headerliste entfernen
+            headers = base_headers + sounding_headers  # Sounding-Spalten anhängen
+        else:
+            headers = base_headers  # Falls keine Sounding-Daten existieren, bleibt der Header normal
+
+        # CSV speichern
+        with open(output_path, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+
             for record in self.records:
-                row = ','.join(str(record[h]) for h in headers)
-                f.write(row + '\n')               
+                row = record.copy()
+                if "sounding_data" in record:
+                    sounding_values = record["sounding_data"]
+
+                    # Falls weniger als 1920 Werte: Mit None auffüllen
+                    if len(sounding_values) < packet_size:
+                        sounding_values.extend([None] * (packet_size - len(sounding_values)))
+
+                    # Sounding-Werte in die festgelegten Spalten eintragen
+                    for i in range(packet_size):
+                        row[f"sounding_{i+1}"] = sounding_values[i]
+
+                    # `sounding_data`-Key entfernen, da es nun in Spalten aufgeteilt wurde
+                    del row["sounding_data"]
+
+                writer.writerow(row)
 
 # Example usage
 # decoder = SL2Decoder('path_to_file.sl2')
@@ -235,10 +302,13 @@ class SL2Decoder:
 # from https://wiki.openstreetmap.org/wiki/SL2 and https://gitlab.com/hrbrmstr/arabia
 
 
-filepath = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\Chart 03_08_2005 [0].sl2"
+filepath = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\Chart 05_11_2018 [0].sl2"
+#filepath = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\Chart 03_08_2005 [0].sl2"
 config_path = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\lowFakeConfig.yaml"
-
+csv_path = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput.csv"
+csv_path_cleaned = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput_cleaned.csv"
 
 decoder = SL2Decoder(filepath, config_path, verbose=True)
 decoder.decode()
-decoder.save_to_csv(r'c:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput.csv')
+decoder.save_to_csv(csv_path)
+decoder.clean_csv(csv_path,csv_path_cleaned)
