@@ -1,5 +1,5 @@
-# Please take to note, that this script is only usable for koordinate in the norther hemisphere. 
-# For the southern hemisphere, the calculation of the coordinates (or negative lat/lng coordinates) has to be adjusted.
+# Please take to note, that this script is only usable for coordinates in the northern hemisphere. 
+# For the southern hemisphere (or negative lat/lng coordinates), the calculation of the coordinates has to be adjusted.
 import struct
 from bitarray import bitarray
 import yaml
@@ -85,6 +85,13 @@ class SL2Decoder:
     def _decode_record(self, data, pos, block_size):
         """Dekodiert einen einzelnen Datenblock."""
         # Read raw values
+        frame_offset = struct.unpack('<I', data[pos + 0:pos + 4])[0]
+        prim_last_channel_frame_offset = struct.unpack('<I', data[pos + 4:pos + 8])[0]
+        sec_last_channel_frame_offset = struct.unpack('<I', data[pos + 8:pos + 12])[0]
+        downscan_last_channel_frame_offset = struct.unpack('<I', data[pos + 12:pos + 16])[0]
+        side_left_last_channel_frame_offset= struct.unpack('<I', data[pos + 16:pos + 20])[0]
+        side_right_last_channel_frame_offset = struct.unpack('<I', data[pos + 20:pos + 24])[0]
+        composite_last_channel_frame_offset = struct.unpack('<I', data[pos + 24:pos + 28])[0]
         block_size = struct.unpack('<h', data[pos + 28:pos + 30])[0] #only needed for reefmaster (whole block size matters)
         last_block_size = struct.unpack('<h', data[pos + 30:pos + 32])[0] #only needed for reefmaster (whole block size matters)
         channel = struct.unpack('<h', data[pos + 32:pos + 34])[0] #only needed for reefmaster (whole block size matters)
@@ -94,7 +101,8 @@ class SL2Decoder:
         lower_limit_raw = struct.unpack('<f', data[pos + 48:pos + 52])[0]
         frequency = struct.unpack('<b', data[pos + 53:pos + 54])[0] #only needed for reefmaster (whole block size matters)
         time1_raw = struct.unpack('<I', data[pos + 60:pos + 64])[0] # seconds since 1980 (GPS Time) Warning! From this point all entries are 4 bytes further than in the documentation (https://wiki.openstreetmap.org/wiki/SL2)
-        water_depth_raw = struct.unpack('<f', data[pos + 64:pos + 68])[0] 
+        water_depth_raw = struct.unpack('<f', data[pos + 64:pos + 68])[0]
+        keel_depth_raw = struct.unpack('<f', data[pos + 68:pos + 72])[0] 
         speed_gps_raw = struct.unpack('<f', data[pos + 100:pos + 104])[0]
         water_temperature = struct.unpack('<f', data[pos + 104:pos + 108])[0] #only needed for reefmaster (whole block size matters)
         lat_raw = struct.unpack('<i', data[pos + 108:pos + 112])[0]
@@ -106,14 +114,7 @@ class SL2Decoder:
         flags_raw = struct.unpack('<H', data[pos + 132:pos + 134])[0]  # Bit-coded flags
         time_offset_raw = struct.unpack('<i', data[pos + 140:pos + 144])[0]
 
-        # Überprüfung NACH dem Dekodieren
-        '''if block_size != 2064 or last_block_size != 2064 or packet_size != 1920:
-            if self.verbose:
-                print(f"Skipping invalid block at {pos}: block_size={block_size}, last_block_size={last_block_size}, packet_size={packet_size}")
-                return None  # Block wird ignoriert'''
-    
-
-    
+        
         # Conversion of raw values
         upper_limit = self._convert_distance(upper_limit_raw)
         lower_limit = self._convert_distance(lower_limit_raw)
@@ -129,6 +130,13 @@ class SL2Decoder:
 
         # Select data fields to include in the output
         return {
+            "frame_offset": frame_offset,
+            "prim_last_channel_frame_offset": prim_last_channel_frame_offset,
+            "sec_last_channel_frame_offset": sec_last_channel_frame_offset,
+            "downscan_last_channel_frame_offset": downscan_last_channel_frame_offset,
+            "side_left_last_channel_frame_offset": side_left_last_channel_frame_offset,
+            "side_right_last_channel_frame_offset": side_right_last_channel_frame_offset,
+            "composite_last_channel_frame_offset": composite_last_channel_frame_offset,
             "block_size": block_size,
             "last_block_size": last_block_size,
             "channel": channel,
@@ -139,6 +147,7 @@ class SL2Decoder:
             "frequency": frequency,
             "time1": time1_raw,
             "water_depth": water_depth if not self.config["include_raw"] else water_depth_raw,
+            "keel_depth": keel_depth_raw,
             "speed_gps": speed_gps,
             "temperature": f"{water_temperature:.2f}",
             #"temperature": water_temperature,
@@ -153,7 +162,7 @@ class SL2Decoder:
             #"heading": heading,
             "flags": flags_raw,
             "time_offset": time_offset,  #  seconds since system startup
-            "sounding_data": sounding_data  # Decoded sounding data
+            #"sounding_data": sounding_data  # Decoded sounding data
             #here you can add more fields if needed or comment out fields wich are not needed, see the documentation for the full list of possible fields
     }    
 
@@ -263,7 +272,7 @@ class SL2Decoder:
         # Basis-Header definieren (alle Spalten ohne Sounding-Daten)
         base_headers = list(self.records[0].keys())
 
-        # Prüfen, ob `sounding_data` existiert, dann feste Spaltennamen erzeugen
+        # Prüfen, ob `sounding_data` existiert, dann feste Spaltennamen für jedes sounding_data byte erzeugen
         if "sounding_data" in base_headers:
             packet_size = 1920  # Anzahl der Sounding-Werte pro Block (fest definiert)
             sounding_headers = [f"sounding_{i+1}" for i in range(packet_size)]
@@ -305,8 +314,8 @@ class SL2Decoder:
 filepath = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\Chart 05_11_2018 [0].sl2"
 #filepath = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\Chart 03_08_2005 [0].sl2"
 config_path = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\lowFakeConfig.yaml"
-csv_path = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput.csv"
-csv_path_cleaned = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput_cleaned.csv"
+csv_path = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput_raw.csv"
+csv_path_cleaned = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput.csv" #cleanded path is the new default
 
 decoder = SL2Decoder(filepath, config_path, verbose=True)
 decoder.decode()
