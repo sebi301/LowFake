@@ -150,19 +150,14 @@ class SL2Decoder:
             "keel_depth": keel_depth_raw,
             "speed_gps": speed_gps,
             "temperature": f"{water_temperature:.2f}",
-            #"temperature": water_temperature,
             "latitude": latitude,
             "longitude": longitude,
             "speed_water": speed_water,
             "course_over_ground": f"{course_over_ground:.3f}",
-            #"course_over_ground": course_over_ground,
             "altitude": f"{altitude:.3f}",
-            #"altitude": altitude,
             "heading": f"{heading:.3f}",
-            #"heading": heading,
             "flags": flags_raw,
             "time_offset": time_offset,  #  seconds since system startup
-            #"sounding_data": sounding_data  # Decoded sounding data
             #here you can add more fields if needed or comment out fields wich are not needed, see the documentation for the full list of possible fields
     }    
 
