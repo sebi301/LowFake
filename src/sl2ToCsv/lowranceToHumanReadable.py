@@ -6,6 +6,15 @@ import yaml
 from math import exp, atan, pi
 from datetime import datetime, timezone
 import csv
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+DECODER_DIR = BASE_DIR / "decoderDocs"
+
+filepath = DECODER_DIR / "Chart 03_08_2005 [0].sl2"
+config_path = DECODER_DIR / "lowFakeConfig.yaml"
+csv_path = DECODER_DIR / "sl2ToCsvOutput_raw_Chart_03082005.csv"
+csv_path_cleaned = DECODER_DIR / "sl2ToCsvOutput_Chart_03082005.csv"
 
 class SL2Decoder:
     def __init__(self, filepath, config_path, verbose=True):
@@ -85,6 +94,42 @@ class SL2Decoder:
     def _decode_record(self, data, pos, block_size):
         """Dekodiert einen einzelnen Datenblock."""
         # Read raw values
+        '''frame_offset = struct.unpack('<I', data[pos + 0:pos + 4])[0]
+        prim_last_channel_frame_offset = struct.unpack('<I', data[pos + 4:pos + 8])[0]
+        sec_last_channel_frame_offset = struct.unpack('<I', data[pos + 8:pos + 12])[0]
+        downscan_last_channel_frame_offset = struct.unpack('<I', data[pos + 12:pos + 16])[0]
+        side_left_last_channel_frame_offset= struct.unpack('<I', data[pos + 16:pos + 20])[0]
+        side_right_last_channel_frame_offset = struct.unpack('<I', data[pos + 20:pos + 24])[0]
+        composite_last_channel_frame_offset = struct.unpack('<I', data[pos + 24:pos + 28])[0]
+        block_size = struct.unpack('<h', data[pos + 28:pos + 30])[0] #only needed for reefmaster (whole block size matters)
+        last_block_size = struct.unpack('<h', data[pos + 30:pos + 32])[0] #only needed for reefmaster (whole block size matters)
+        channel = struct.unpack('<h', data[pos + 32:pos + 34])[0] #only needed for reefmaster (whole block size matters)
+        packet_size = struct.unpack('<h', data[pos + 34:pos + 36])[0] #only needed for reefmaster (whole block size matters)
+        frame_index = struct.unpack('<i', data[pos + 36:pos + 40])[0] #only needed for reefmaster (whole block size matters)
+        upper_limit_raw = struct.unpack('<I', data[pos + 40:pos + 44])[0]
+        lower_limit_raw = struct.unpack('<I', data[pos + 48:pos + 52])[0]
+        unknownPart1_1 = struct.unpack('<B', data[pos + 52: pos + 53])[0]
+        unknownPart1_2 = struct.unpack('<B', data[pos + 53: pos + 54])[0]
+        unknownPart1_3 = struct.unpack('<B', data[pos + 54: pos + 55])[0]
+        unknownPart1_4 = struct.unpack('<B', data[pos + 55: pos + 56])[0]
+        unknownPart1_5 = struct.unpack('<B', data[pos + 56: pos + 57])[0]
+        frequency = struct.unpack('<b', data[pos + 53:pos + 54])[0] #only needed for reefmaster (whole block size matters)
+        unknownPart2_1, unknownPart2_2, unknownPart2_3, unknownPart2_4, unknownPart2_5, unknownPart2_6 = struct.unpack('<6B', data[pos + 54:pos + 60])
+        time1_raw = struct.unpack('<I', data[pos + 60:pos + 64])[0] # seconds since 1980 (GPS Time) Warning! From this point all entries are 4 bytes further than in the documentation (https://wiki.openstreetmap.org/wiki/SL2)
+        water_depth_raw = struct.unpack('<f', data[pos + 64:pos + 68])[0]
+        keel_depth_raw = struct.unpack('<f', data[pos + 68:pos + 72])[0] 
+        unknownPart3_1, unknownPart3_2, unknownPart3_3, unknownPart3_4, unknownPart3_5, unknownPart3_6, unknownPart3_7, unknownPart3_8, unknownPart3_9, unknownPart3_10, unknownPart3_11, unknownPart3_12, unknownPart3_13, unknownPart3_14, unknownPart3_15, unknownPart3_16, unknownPart3_17, unknownPart3_18, unknownPart3_19, unknownPart3_20, unknownPart3_21, unknownPart3_22, unknownPart3_23, unknownPart3_24, unknownPart3_25, unknownPart3_26, unknownPart3_27, unknownPart3_28 = struct.unpack('<28B', data[pos + 72:pos + 100])
+        speed_gps_raw = struct.unpack('<f', data[pos + 100:pos + 104])[0]
+        water_temperature = struct.unpack('<f', data[pos + 104:pos + 108])[0] #only needed for reefmaster (whole block size matters)
+        lat_raw = struct.unpack('<i', data[pos + 108:pos + 112])[0]
+        lng_raw = struct.unpack('<i', data[pos + 112:pos + 116])[0]
+        speed_water_raw = struct.unpack('<f', data[pos + 116:pos + 120])[0] #only needed for reefmaster (whole block size matters)
+        course_over_ground = struct.unpack('<f', data[pos + 120:pos + 124])[0] #only needed for reefmaster (whole block size matters)
+        altitude = struct.unpack('<f', data[pos + 124:pos + 128])[0] #only needed for reefmaster (whole block size matters)
+        heading = struct.unpack('<i', data[pos + 128:pos + 132])[0] #only needed for reefmaster (whole block size matters)
+        flags_raw = struct.unpack('<H', data[pos + 132:pos + 134])[0]  # Bit-coded flags
+        time_offset_raw = struct.unpack('<i', data[pos + 140:pos + 144])[0]'''
+
         frame_offset = struct.unpack('<I', data[pos + 0:pos + 4])[0]
         prim_last_channel_frame_offset = struct.unpack('<I', data[pos + 4:pos + 8])[0]
         sec_last_channel_frame_offset = struct.unpack('<I', data[pos + 8:pos + 12])[0]
@@ -97,25 +142,33 @@ class SL2Decoder:
         channel = struct.unpack('<h', data[pos + 32:pos + 34])[0] #only needed for reefmaster (whole block size matters)
         packet_size = struct.unpack('<h', data[pos + 34:pos + 36])[0] #only needed for reefmaster (whole block size matters)
         frame_index = struct.unpack('<i', data[pos + 36:pos + 40])[0] #only needed for reefmaster (whole block size matters)
-        upper_limit_raw = struct.unpack('<f', data[pos + 44:pos + 48])[0]
-        lower_limit_raw = struct.unpack('<f', data[pos + 48:pos + 52])[0]
+        upper_limit_raw = struct.unpack('<I', data[pos + 40:pos + 44])[0]
+        lower_limit_raw = struct.unpack('<I', data[pos + 48:pos + 52])[0]
+        unknownPart1_1 = struct.unpack('<B', data[pos + 52: pos + 53])[0]
+        unknownPart1_2 = struct.unpack('<B', data[pos + 53: pos + 54])[0]
+        unknownPart1_3 = struct.unpack('<B', data[pos + 54: pos + 55])[0]
+        unknownPart1_4 = struct.unpack('<B', data[pos + 55: pos + 56])[0]
+        unknownPart1_5 = struct.unpack('<B', data[pos + 56: pos + 57])[0]
         frequency = struct.unpack('<b', data[pos + 53:pos + 54])[0] #only needed for reefmaster (whole block size matters)
+        unknownPart2_1, unknownPart2_2, unknownPart2_3, unknownPart2_4, unknownPart2_5, unknownPart2_6 = struct.unpack('<6B', data[pos + 54:pos + 60])
         time1_raw = struct.unpack('<I', data[pos + 60:pos + 64])[0] # seconds since 1980 (GPS Time) Warning! From this point all entries are 4 bytes further than in the documentation (https://wiki.openstreetmap.org/wiki/SL2)
-        water_depth_raw = struct.unpack('<f', data[pos + 64:pos + 68])[0]
-        keel_depth_raw = struct.unpack('<f', data[pos + 68:pos + 72])[0] 
-        speed_gps_raw = struct.unpack('<f', data[pos + 100:pos + 104])[0]
-        water_temperature = struct.unpack('<f', data[pos + 104:pos + 108])[0] #only needed for reefmaster (whole block size matters)
+        water_depth_raw = struct.unpack('<i', data[pos + 64:pos + 68])[0]
+        keel_depth_raw = struct.unpack('<i', data[pos + 68:pos + 72])[0] 
+        unknownPart3_1, unknownPart3_2, unknownPart3_3, unknownPart3_4, unknownPart3_5, unknownPart3_6, unknownPart3_7, unknownPart3_8, unknownPart3_9, unknownPart3_10, unknownPart3_11, unknownPart3_12, unknownPart3_13, unknownPart3_14, unknownPart3_15, unknownPart3_16, unknownPart3_17, unknownPart3_18, unknownPart3_19, unknownPart3_20, unknownPart3_21, unknownPart3_22, unknownPart3_23, unknownPart3_24, unknownPart3_25, unknownPart3_26, unknownPart3_27, unknownPart3_28 = struct.unpack('<28B', data[pos + 72:pos + 100])
+        speed_gps_raw = struct.unpack('<i', data[pos + 100:pos + 104])[0]
+        water_temperature = struct.unpack('<i', data[pos + 104:pos + 108])[0] #only needed for reefmaster (whole block size matters)
         lat_raw = struct.unpack('<i', data[pos + 108:pos + 112])[0]
         lng_raw = struct.unpack('<i', data[pos + 112:pos + 116])[0]
-        speed_water_raw = struct.unpack('<f', data[pos + 116:pos + 120])[0] #only needed for reefmaster (whole block size matters)
-        course_over_ground = struct.unpack('<f', data[pos + 120:pos + 124])[0] #only needed for reefmaster (whole block size matters)
-        altitude = struct.unpack('<f', data[pos + 124:pos + 128])[0] #only needed for reefmaster (whole block size matters)
-        heading = struct.unpack('<f', data[pos + 128:pos + 132])[0] #only needed for reefmaster (whole block size matters)
+        speed_water_raw = struct.unpack('<i', data[pos + 116:pos + 120])[0] #only needed for reefmaster (whole block size matters)
+        course_over_ground = struct.unpack('<i', data[pos + 120:pos + 124])[0] #only needed for reefmaster (whole block size matters)
+        altitude = struct.unpack('<i', data[pos + 124:pos + 128])[0] #only needed for reefmaster (whole block size matters)
+        heading = struct.unpack('<i', data[pos + 128:pos + 132])[0] #only needed for reefmaster (whole block size matters)
         flags_raw = struct.unpack('<H', data[pos + 132:pos + 134])[0]  # Bit-coded flags
+        unknownPart4_1, unknownPart4_2, unknownPart4_3, unknownPart4_4, unknownPart4_5, unknownPart4_6 = struct.unpack('<6B', data[pos + 134:pos + 140])
         time_offset_raw = struct.unpack('<i', data[pos + 140:pos + 144])[0]
 
         
-        # Conversion of raw values
+        # Conversion of raw values. Used if the config file specifies a different unit than the raw value.
         upper_limit = self._convert_distance(upper_limit_raw)
         lower_limit = self._convert_distance(lower_limit_raw)
         water_depth = self._convert_distance(water_depth_raw)
@@ -142,22 +195,72 @@ class SL2Decoder:
             "channel": channel,
             "packet_size": packet_size,
             "frame_index": frame_index,
-            "upper_limit": upper_limit if not self.config["include_raw"] else upper_limit_raw,
-            "lower_limit": lower_limit if not self.config["include_raw"] else lower_limit_raw,
+            "upper_limit": upper_limit if self.config.get("units", {}).get("distance") == "meter" else upper_limit_raw,
+            "lower_limit": lower_limit if self.config.get("units", {}).get("distance") == "meter" else lower_limit_raw,
+            "unknownPart1_1": unknownPart1_1,
+            "unknownPart1_2": unknownPart1_2,
+            "unknownPart1_3": unknownPart1_3,
+            "unknownPart1_4": unknownPart1_4,
+            "unknownPart1_5": unknownPart1_5,
             "frequency": frequency,
+            "unknownPart2_1": unknownPart2_1,
+            "unknownPart2_2": unknownPart2_2,
+            "unknownPart2_3": unknownPart2_3,
+            "unknownPart2_4": unknownPart2_4,
+            "unknownPart2_5": unknownPart2_5,
+            "unknownPart2_6": unknownPart2_6,
             "time1": time1_raw,
-            "water_depth": water_depth if not self.config["include_raw"] else water_depth_raw,
+            "water_depth": water_depth if self.config.get("units", {}).get("distance") == "meter" else water_depth_raw,
             "keel_depth": keel_depth_raw,
-            "speed_gps": speed_gps,
-            "temperature": f"{water_temperature:.2f}",
-            "latitude": latitude,
-            "longitude": longitude,
-            "speed_water": speed_water,
-            "course_over_ground": f"{course_over_ground:.3f}",
-            "altitude": f"{altitude:.3f}",
-            "heading": f"{heading:.3f}",
+            "unknownPart3_1": unknownPart3_1,
+            "unknownPart3_2": unknownPart3_2,
+            "unknownPart3_3": unknownPart3_3,
+            "unknownPart3_4": unknownPart3_4,
+            "unknownPart3_5": unknownPart3_5,
+            "unknownPart3_6": unknownPart3_6,
+            "unknownPart3_7": unknownPart3_7,
+            "unknownPart3_8": unknownPart3_8,
+            "unknownPart3_9": unknownPart3_9,
+            "unknownPart3_10": unknownPart3_10,
+            "unknownPart3_11": unknownPart3_11,
+            "unknownPart3_12": unknownPart3_12,
+            "unknownPart3_13": unknownPart3_13,
+            "unknownPart3_14": unknownPart3_14,
+            "unknownPart3_15": unknownPart3_15,
+            "unknownPart3_16": unknownPart3_16,
+            "unknownPart3_17": unknownPart3_17,
+            "unknownPart3_18": unknownPart3_18,
+            "unknownPart3_19": unknownPart3_19,
+            "unknownPart3_20": unknownPart3_20,
+            "unknownPart3_21": unknownPart3_21,
+            "unknownPart3_22": unknownPart3_22,
+            "unknownPart3_23": unknownPart3_23,
+            "unknownPart3_24": unknownPart3_24,
+            "unknownPart3_25": unknownPart3_25,
+            "unknownPart3_26": unknownPart3_26,
+            "unknownPart3_27": unknownPart3_27,
+            "unknownPart3_28": unknownPart3_28,
+            "speed_gps": speed_gps_raw,
+            #"temperature": f"{water_temperature:.2f}",
+            "temperature": water_temperature,
+            "latitude": lat_raw,
+            "longitude": lng_raw,
+            "speed_water": speed_water_raw,
+            #"course_over_ground": f"{course_over_ground:.3f}",
+            #"altitude": f"{altitude:.3f}",
+            #"heading": f"{heading:.3f}",
+            "course_over_ground": course_over_ground,
+            "altitude": altitude,
+            "heading": heading,
             "flags": flags_raw,
-            "time_offset": time_offset,  #  seconds since system startup
+            "unknownPart4_1": unknownPart4_1,
+            "unknownPart4_2": unknownPart4_2,
+            "unknownPart4_3": unknownPart4_3,
+            "unknownPart4_4": unknownPart4_4,
+            "unknownPart4_5": unknownPart4_5,
+            "unknownPart4_6": unknownPart4_6,
+            "time_offset": time_offset_raw,
+            "sounding_data": sounding_data    #  seconds since system startup
             #here you can add more fields if needed or comment out fields wich are not needed, see the documentation for the full list of possible fields
     }    
 
@@ -305,12 +408,6 @@ class SL2Decoder:
 # decoder.save_to_csv('output.csv')
 # from https://wiki.openstreetmap.org/wiki/SL2 and https://gitlab.com/hrbrmstr/arabia
 
-
-filepath = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\Chart 05_11_2018 [0].sl2"
-#filepath = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\Chart 03_08_2005 [0].sl2"
-config_path = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\lowFakeConfig.yaml"
-csv_path = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput_raw.csv"
-csv_path_cleaned = r"C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput.csv" #cleanded path is the new default
 
 decoder = SL2Decoder(filepath, config_path, verbose=True)
 decoder.decode()

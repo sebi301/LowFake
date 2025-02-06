@@ -1,0 +1,7 @@
+units:
+  distance: raw    # Optionen: 'raw(feet)', 'meter'
+  speed: raw         # Optionen: 'raw(knots)', 'kmh'
+  coordinates: raw # Optionen: 'raw(Spherical Mercator Projection with WGS84 Polar Earth Radius)', 'wgs84'
+
+
+

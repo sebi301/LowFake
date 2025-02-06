@@ -1,5 +1,29 @@
 import struct
 import csv
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+DECODER_DIR = BASE_DIR / "decoderDocs"
+ENCODER_DIR = BASE_DIR / "encoderDocs"
+
+input_file = DECODER_DIR / "sl2ToCsvOutput_Chart_03082005.csv"
+output_file = ENCODER_DIR / "csvTosl2_Chart_03082005.sl2"
+
+POLAR_EARTH_RADIUS = 6356752.3142  # Radius der Erde für die Mercator-Umrechnung
+
+def detect_csv_format(csv_filepath):
+    """Erkennt, ob die CSV-Datei im Deeper- oder Lowrance-Format ist."""
+    with open(csv_filepath, 'r') as f:
+        reader = csv.reader(f)
+        header = next(reader)
+
+        if "UnixTimestamp" in header and "Depth" in header and "Spd_kmh" in header:
+            return "deeper"
+        elif "time1" in header and "water_depth" in header and "latitude" in header:
+            return "lowrance"
+        else:
+            return "unknown"
 
 class SL2Encoder:
     def __init__(self, csv_filepath, sl2_filepath):
@@ -186,10 +210,198 @@ class SL2Encoder:
         # Konvertieren der Sounding-Daten von CSV-String in Bytes
         sounding_values = [int(x) for x in sounding_data.split(';')]
         return struct.pack(f'<{len(sounding_values)}B', *sounding_values)
+    
+class LowranceCSVConverter:
+    """Lädt eine Lowrance-CSV-Datei und gibt die Daten unverändert weiter."""
+
+    def __init__(self, csv_filepath):
+        self.csv_filepath = csv_filepath
+        self.records = []
+
+    def load_csv(self):
+        """Lädt die Lowrance-CSV-Datei."""
+        with open(self.csv_filepath, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if SL2Encoder._is_valid_row(row, format_type="lowrance"):
+                    row["sounding_data"] = SL2Encoder._encode_sounding_data(row)
+                    self.records.append(row)
+        print(f"Anzahl der Lowrance-Datensätze geladen: {len(self.records)}")
+
+class DeeperCSVConverter:
+    """Konvertiert eine Deeper-CSV-Datei in ein SL2-kompatibles Datenformat."""
+
+    def __init__(self, csv_filepath):
+        self.csv_filepath = csv_filepath
+        self.records = []
+
+    def load_csv(self):
+        """Lädt die Deeper-CSV-Datei und konvertiert die Daten für SL2."""
+        with open(self.csv_filepath, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                converted_row = self._encode_deeper_row(row)
+                if converted_row:
+                    self.records.append(converted_row)
+        print(f"Anzahl der Deeper-Datensätze geladen: {len(self.records)}")
+
+    def _encode_deeper_row(self, row):
+        """Konvertiert eine einzelne Zeile aus der Deeper-CSV-Datei in SL2-kompatible Daten."""
+
+        # Ersten Zeitstempel speichern, falls noch nicht gesetzt
+        current_timestamp = int(row.get('UnixTimestamp', 0))
+        if self.start_time is None:
+                self.start_time = current_timestamp  # Ersten Zeitstempel merken
+            
+            # Berechnung von time1 als relative Zeit seit Messbeginn
+        try:
+            index = len(self.records)
+            frame_offset = index * 144  # Fortlaufender Frame-Offset
+            last_channel_frame_offset = (index - 1) * 144 if index > 0 else 0
+            prim_last_channel_frame_offset = frame_offset
+            sec_last_channel_frame_offset = 0
+            downscan_last_channel_frame_offset = 0
+            side_left_last_channel_frame_offset = 0
+            side_right_last_channel_frame_offset = 0
+            composite_last_channel_frame_offset = 0
+            block_size = 2064
+            last_block_size = block_size
+            channel = 0
+            packet_size = 1920  # Sounding-Daten Länge anpassen
+            frame_index = index
+            upper_limit = 10.0  # Dummy-Wert
+            lower_limit = float(row.get('Depth', 0.0)+5) * 3.28084  # Meter zu Fuß
+            frequency = 200  # Standard für Deeper
+            time1 = current_timestamp
+            water_depth = float(row.get('Depth', 0.0))
+            keel_depth = 0.0
+            speed_gps = float(row.get('Spd_kmh', 0.0)) / 1.852  # km/h in Knoten
+            temperature = float(row.get('Temp', 0.0))
+            latitude = int(float(row.get('Latitude', 0.0)) * 1e7)  # Mercator-Skalierung
+            longitude = int(float(row.get('Longitude', 0.0)) * 1e7)
+            course_over_ground = 0.0
+            altitude = 0.0
+            heading = 0.0
+            flags = 0
+            time_offset = current_timestamp - self.start_time
+
+            # Extrahiere Sounding-Daten aus allen Spalten, die mit "0." beginnen
+            sounding_columns = [col for col in row.keys() if col.replace(".", "").isdigit()]
+            sounding_data = []
+            for col in sounding_columns:
+                values = row[col].strip("[]").split(",")
+                sounding_data.extend([int(float(x)) for x in values if x.strip()])
+
+            if not sounding_data:
+                print(f"Keine gültigen Sounding-Daten in Zeile {frame_index}")
+                return None
+
+            return {
+                "frame_offset": frame_offset,
+                "prim_last_channel_frame_offset": prim_last_channel_frame_offset,
+                "sec_last_channel_frame_offset": sec_last_channel_frame_offset,
+                "downscan_last_channel_frame_offset": downscan_last_channel_frame_offset,
+                "side_left_last_channel_frame_offset": side_left_last_channel_frame_offset,
+                "side_right_last_channel_frame_offset": side_right_last_channel_frame_offset,
+                "composite_last_channel_frame_offset": composite_last_channel_frame_offset,
+                "block_size": block_size,
+                "last_block_size": last_block_size,
+                "last_channel_frame_offset": last_channel_frame_offset,
+                "channel": channel,
+                "packet_size": packet_size,
+                "frame_index": frame_index,
+                "upper_limit": upper_limit,
+                "lower_limit": lower_limit,
+                "frequency": frequency,
+                "time1": time1,
+                "water_depth": water_depth,
+                "keel_depth": keel_depth,
+                "speed_gps": speed_gps,
+                "temperature": temperature,
+                "latitude": latitude,
+                "longitude": longitude,
+                "course_over_ground": course_over_ground,
+                "altitude": altitude,
+                "heading": heading,
+                "flags": flags,
+                "time_offset": time_offset,
+                "sounding_data": sounding_data
+            }
+        except Exception as e:
+            print(f"Fehler bei der Konvertierung einer Deeper-Zeile: {e}")
+            return None
+
+class SL2Encoder:
+    """Erstellt eine SL2-Datei aus vorbereiteten SL2-Daten."""
+
+    def __init__(self, records, sl2_filepath):
+        self.records = records
+        self.sl2_filepath = sl2_filepath
+
+    def encode(self):
+        """Kodiert die Daten und schreibt sie in eine SL2-Datei."""
+        with open(self.sl2_filepath, 'wb') as f:
+            f.write(struct.pack('<IIH', 2, 1970, 8))
+            for i, record in enumerate(self.records):
+                block = self._create_block(record, i)
+                if block:
+                    f.write(block)
+
+        print(f"SL2-Datei erfolgreich gespeichert: {self.sl2_filepath}")
+
+    def _create_block(self, record, index):
+        """Erstellt einen einzelnen SL2-Block basierend auf einem Datensatz."""
+        block = struct.pack(
+            '<iiiiiiihhhhiff5sb6siff28sffffffffh6si',
+            record["frame_offset"],
+            record["block_size"],
+            record["last_channel_frame_offset"],
+            record["channel"],
+            record["packet_size"],
+            record["frame_index"],
+            record["upper_limit"],
+            record["lower_limit"],
+            record["speed_gps"],
+            record["latitude"],
+            record["longitude"],
+            record["course_over_ground"],
+            record["altitude"],
+            record["heading"],
+            record["flags"],
+            record["time_offset"],
+            record["time1"]
+        ) + record["sounding_data"]  
+
+        return block
+
+    @staticmethod
+    def _encode_sounding_data(row):
+        """Kodiert die Sounding-Daten als binären Block."""
+        sounding_columns = [col for col in row.keys() if col.replace(".", "").isdigit()]
+        sounding_data = []
+        for col in sounding_columns:
+            values = row[col].strip("[]").split(",")
+            sounding_data.extend([int(float(x)) for x in values if x.strip()])
+        return struct.pack(f'<{len(sounding_data)}B', *sounding_data)
+
+    @staticmethod
+    def _is_valid_row(row, format_type):
+        """Überprüft, ob eine Zeile gültig ist."""
+        if format_type == "deeper":
+            return '0.010407008' in row or any(col.startswith("sounding_") for col in row)
+        elif format_type == "lowrance":
+            return "sounding_data" in row and row["sounding_data"]
+        return False
+
 
 # Beispielaufruf
-input_file = r'C:\Users\ssteinhauser\Masterthesis\LowFake\Decoder\sl2ToCsvOutput.csv'
-output_file = r'C:\Users\ssteinhauser\Masterthesis\LowFake\Encoder\csvTosl2.sl2'
-encoder = SL2Encoder(input_file, output_file)
-encoder.load_csv()
-encoder.encode()
+csv_format = detect_csv_format(input_file)
+converter = DeeperCSVConverter(input_file) if csv_format == "deeper" else LowranceCSVConverter(input_file) if csv_format == "lowrance" else None
+
+if converter:
+    converter.load_csv()
+    output_file = os.path.splitext(input_file)[0] + ".sl2"
+    sl2_encoder = SL2Encoder(converter.records, output_file)
+    sl2_encoder.encode()
+else:
+    print("Ungültiges CSV-Format, bitte Deeper- oder Lowrance-CSV-Datei verwenden.")
